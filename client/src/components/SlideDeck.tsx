@@ -5,6 +5,7 @@ import { StatsOverviewSlide } from './slides/StatsOverviewSlide';
 import { RepositoriesSlide } from './slides/RepositoriesSlide';
 import { LanguageSlide } from './slides/LanguageSlide';
 import { ActivityTrendSlide } from './slides/ActivityTrendSlide';
+import { QuarterAnalysisSlide } from './slides/QuarterAnalysisSlide';
 import { HeatmapSlide } from './slides/HeatmapSlide';
 import { RadarSlide } from './slides/RadarSlide';
 import { FinalSlide } from './slides/FinalSlide';
@@ -18,6 +19,7 @@ const slides = [
   RepositoriesSlide,
   LanguageSlide,
   ActivityTrendSlide,
+  QuarterAnalysisSlide,
   HeatmapSlide,
   RadarSlide,
   FinalSlide,

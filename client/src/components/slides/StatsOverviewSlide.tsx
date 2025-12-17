@@ -49,7 +49,7 @@ export function StatsOverviewSlide() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
+          transition={{ delay: 0.6 }}
           className="mt-12 text-center text-gray-400"
         >
           你最忙碌的一天是 <span className="text-[#10b981] font-bold">{slidesData.busiestDay.date}</span>

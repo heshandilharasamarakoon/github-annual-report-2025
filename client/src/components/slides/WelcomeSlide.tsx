@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { useAppStore } from '../../store/useAppStore';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import { getCurrentYearProgress, getProgressText } from '../../lib/timeUtils';
 
 export function WelcomeSlide() {
   const { userData } = useAppStore();
@@ -35,10 +36,33 @@ export function WelcomeSlide() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="text-gray-400 text-xl mb-8"
+          className="text-gray-400 text-xl mb-6"
         >
           这是你的 GitHub 2025 年度总结
         </motion.p>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="mb-8"
+        >
+          <div className="bg-[#0a0a0a] border border-white/10 rounded-xl p-4 max-w-md mx-auto">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-400">2025年进度</span>
+              <span className="text-sm font-bold text-[#10b981]">{getCurrentYearProgress().toFixed(1)}%</span>
+            </div>
+            <div className="w-full bg-white/5 rounded-full h-2 overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${getCurrentYearProgress()}%` }}
+                transition={{ delay: 0.8, duration: 1, ease: 'easeOut' }}
+                className="h-full bg-gradient-to-r from-[#10b981] to-[#34d399]"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-2 text-center">{getProgressText()}</p>
+          </div>
+        </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}

@@ -38,7 +38,7 @@ export function RadarSlide() {
           animate={{ opacity: 1, y: 0 }}
           className="text-4xl font-bold text-center mb-8"
         >
-          你的 <span className="neon-green neon-glow">开发者画像</span>
+          你的 <span className="neon-green neon-glow">2025</span> 开发者画像
         </motion.h2>
 
         <motion.div

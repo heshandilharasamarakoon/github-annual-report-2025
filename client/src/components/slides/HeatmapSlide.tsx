@@ -29,7 +29,7 @@ export function HeatmapSlide() {
           animate={{ opacity: 1, y: 0 }}
           className="text-2xl md:text-4xl font-bold text-center mb-8 md:mb-12"
         >
-          你的 <span className="neon-green neon-glow">活跃热力图</span>
+          你的 <span className="neon-green neon-glow">2025</span> 活跃热力图
         </motion.h2>
 
         {/* Mobile Layout - Vertical Calendar */}

@@ -4,12 +4,13 @@ import { fetchUserData, fetchGitHubStats } from './lib/github';
 import { IntroView } from './components/IntroView';
 import { SlideDeck } from './components/SlideDeck';
 import { LoadingScreen } from './components/LoadingScreen';
+import { StyleSelectionSlide } from './components/slides/StyleSelectionSlide';
 import { Button } from './components/ui/button';
 import { Github } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 
 export function App() {
-  const { token, userData, slidesData, setToken, setUserData, setSlidesData, setLoading, isLoading } = useAppStore();
+  const { token, userData, slidesData, setToken, setUserData, setSlidesData, setLoading, isLoading, aiStyle } = useAppStore();
   const [showIntro, setShowIntro] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('正在连接 GitHub...');
 
@@ -88,32 +89,43 @@ export function App() {
   }
 
   if (!token || !userData || !slidesData) {
-  return (
-    <>
-      <div className="fixed top-4 right-4 z-50 cursor-pointer hover:opacity-80" onClick={() => window.location.href = 'https://github.com/BingyanStudio/github-annual-report-2025'}>
-        <Github className="w-6 h-6 text-white" />
-      </div>
-      <div className="flex items-center justify-center min-h-screen bg-black">
-        <div className="text-center max-w-md px-4">
-          <div className="text-6xl mb-8">📊</div>
-          <h1 className="text-5xl font-bold mb-4">
-            GitHub <span className="neon-green neon-glow">2025</span>
-          </h1>
-          <h2 className="text-3xl font-bold mb-6">年度总结</h2>
-          <p className="text-gray-400 mb-8">
-            回顾你在 2025 年的代码旅程，看看你的成长和贡献
-          </p>
-          <Button
-            onClick={handleLogin}
-            size="lg"
-            className="bg-[#10b981] hover:bg-[#059669] text-black font-bold text-lg"
-          >
-            <Github className="w-5 h-5 mr-2" />
-            使用 GitHub 登录
-          </Button>
+    return (
+      <>
+        <div className="fixed top-4 right-4 z-50 cursor-pointer hover:opacity-80" onClick={() => window.location.href = 'https://github.com/BingyanStudio/github-annual-report-2025'}>
+          <Github className="w-6 h-6 text-white" />
         </div>
-      </div>
-    </>
+        <div className="flex items-center justify-center min-h-screen bg-black">
+          <div className="text-center max-w-md px-4">
+            <div className="text-6xl mb-8">📊</div>
+            <h1 className="text-5xl font-bold mb-4">
+              GitHub <span className="neon-green neon-glow">2025</span>
+            </h1>
+            <h2 className="text-3xl font-bold mb-6">年度总结</h2>
+            <p className="text-gray-400 mb-8">
+              回顾你在 2025 年的代码旅程，看看你的成长和贡献
+            </p>
+            <Button
+              onClick={handleLogin}
+              size="lg"
+              className="bg-[#10b981] hover:bg-[#059669] text-black font-bold text-lg"
+            >
+              <Github className="w-5 h-5 mr-2" />
+              使用 GitHub 登录
+            </Button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  if (!aiStyle) {
+    return (
+      <>
+        <div className="fixed top-4 right-4 z-50 cursor-pointer hover:opacity-80" onClick={() => window.location.href = 'https://github.com/BingyanStudio/github-annual-report-2025'}>
+          <Github className="w-6 h-6 text-white" />
+        </div>
+        <StyleSelectionSlide />
+      </>
     );
   }
 

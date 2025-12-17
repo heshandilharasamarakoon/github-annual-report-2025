@@ -15,7 +15,7 @@ export function LanguageSlide() {
           animate={{ opacity: 1, y: 0 }}
           className="text-4xl font-bold text-center mb-12"
         >
-          你的 <span className="neon-green neon-glow">编程语言</span> 分布
+          你的 <span className="neon-green neon-glow">2025</span> 编程语言分布
         </motion.h2>
 
         <div className="space-y-6">

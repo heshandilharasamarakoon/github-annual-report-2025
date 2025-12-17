@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion';
 import { useAppStore } from '../../store/useAppStore';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { useState, useEffect } from 'react';
+import { getQuarter, getQuarterName } from '../../lib/timeUtils';
 
 export function ActivityTrendSlide() {
   const { slidesData } = useAppStore();
@@ -19,10 +20,21 @@ export function ActivityTrendSlide() {
 
   if (!slidesData || !slidesData.commitActivity) return null;
 
-  const chartData = slidesData.commitActivity.map(item => ({
-    month: item.month.substring(5),
-    commits: item.count,
-  }));
+  const chartData = slidesData.commitActivity.map(item => {
+    const quarter = getQuarter(item.month);
+    return {
+      month: item.month.substring(5),
+      commits: item.count,
+      quarter: getQuarterName(quarter),
+    };
+  });
+
+  const quarterMarkers = [
+    { month: '03', quarter: 'Q1' },
+    { month: '06', quarter: 'Q2' },
+    { month: '09', quarter: 'Q3' },
+    { month: '12', quarter: 'Q4' },
+  ];
 
   return (
     <div className="flex items-center justify-center min-h-screen px-4 pb-20">
@@ -32,7 +44,7 @@ export function ActivityTrendSlide() {
           animate={{ opacity: 1, y: 0 }}
           className="text-2xl md:text-4xl font-bold text-center mb-8 md:mb-12"
         >
-          你的 <span className="neon-green neon-glow">月度趋势</span>
+          你的 <span className="neon-green neon-glow">2025</span> 月度趋势
         </motion.h2>
 
         <motion.div
@@ -81,6 +93,21 @@ export function ActivityTrendSlide() {
                 fillOpacity={1}
                 fill="url(#colorCommits)"
               />
+              {quarterMarkers.map((marker, idx) => {
+                const dataIndex = chartData.findIndex(d => d.month.startsWith(marker.month));
+                if (dataIndex >= 0) {
+                  return (
+                    <ReferenceLine
+                      key={idx}
+                      x={chartData[dataIndex].month}
+                      stroke="rgba(16, 185, 129, 0.3)"
+                      strokeDasharray="2 2"
+                      label={{ value: marker.quarter, position: 'top', fill: '#6b7280', fontSize: 10 }}
+                    />
+                  );
+                }
+                return null;
+              })}
             </AreaChart>
           </ResponsiveContainer>
         </motion.div>

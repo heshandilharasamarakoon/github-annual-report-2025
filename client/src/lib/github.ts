@@ -1,4 +1,5 @@
-import type { UserData, SlidesData, LanguageData } from '../store/useAppStore';
+import type { UserData, SlidesData, LanguageData, QuarterStats } from '../store/useAppStore';
+import { getDaysElapsedIn2025, getQuarter } from './timeUtils';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 
@@ -10,6 +11,21 @@ interface GitHubRepo {
   isFork: boolean;
   url: string;
   updatedAt: string;
+  defaultBranchRef?: {
+    target?: {
+      history?: {
+        nodes?: Array<{
+          message: string;
+          committedDate: string;
+          author?: {
+            user?: {
+              id: string;
+            };
+          };
+        }>;
+      };
+    };
+  };
   primaryLanguage: {
     name: string;
     color: string;
@@ -66,10 +82,13 @@ export async function fetchGitHubStats(token: string, username: string): Promise
   const year = 2025;
   const from = `${year}-01-01T00:00:00Z`;
   const to = `${year}-12-31T23:59:59Z`;
+  const fromTimestamp = `${year}-01-01T00:00:00Z`;
+  const toTimestamp = `${year}-12-31T23:59:59Z`;
 
   const query = `
-    query($username: String!, $from: DateTime!, $to: DateTime!) {
+    query($username: String!, $from: DateTime!, $to: DateTime!, $fromTimestamp: GitTimestamp!, $toTimestamp: GitTimestamp!) {
       user(login: $username) {
+        id
         contributionsCollection(from: $from, to: $to) {
           contributionCalendar {
             totalContributions
@@ -111,6 +130,23 @@ export async function fetchGitHubStats(token: string, username: string): Promise
             isFork
             url
             updatedAt
+            defaultBranchRef {
+              target {
+                ... on Commit {
+                  history(first: 20, since: $fromTimestamp, until: $toTimestamp) {
+                    nodes {
+                      message
+                      committedDate
+                      author {
+                        user {
+                          id
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
             primaryLanguage {
               name
               color
@@ -133,11 +169,12 @@ export async function fetchGitHubStats(token: string, username: string): Promise
   const response = await fetch(`${API_BASE}/graphql`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, variables: { username, from, to }, token }),
+    body: JSON.stringify({ query, variables: { username, from, to, fromTimestamp, toTimestamp }, token }),
   });
 
   const data = await response.json();
   const userData = data.data.user;
+  const userId = userData.id;
 
   const contributions = userData.contributionsCollection;
   const totalCommits = contributions.contributionCalendar.totalContributions;
@@ -184,8 +221,6 @@ export async function fetchGitHubStats(token: string, username: string): Promise
     day.count > max.count ? day : max
   , { date: '', count: 0 });
 
-  const activeDays = contributionDays.filter((d) => d.count > 0).length;
-  
   let longestStreak = 0;
   let currentStreak = 0;
   contributionDays.forEach((day) => {
@@ -208,9 +243,13 @@ export async function fetchGitHubStats(token: string, username: string): Promise
     busiestDay.count
   );
 
+  const daysElapsed = getDaysElapsedIn2025();
+  const activeDays = contributionDays.filter((d) => d.count > 0).length;
+  const activityRate = daysElapsed > 0 ? (activeDays / daysElapsed) * 100 : 0;
+
   const radarData: Array<{ subject: string; value: number; fullMark: 100 }> = [
     { subject: '代码量', value: Math.min((totalCommits / 500) * 100, 100), fullMark: 100 as const },
-    { subject: '活跃度', value: Math.min((contributionDays.filter((d) => d.count > 0).length / 365) * 100, 100), fullMark: 100 as const },
+    { subject: '活跃度', value: Math.min(activityRate, 100), fullMark: 100 as const },
     { subject: '协作力', value: Math.min((totalPRs / 50) * 100, 100), fullMark: 100 as const },
     { subject: '影响力', value: Math.min((totalStars / 100) * 100, 100), fullMark: 100 as const },
     { subject: '多样性', value: Math.min((topLanguages.length / 5) * 100, 100), fullMark: 100 as const },
@@ -219,9 +258,36 @@ export async function fetchGitHubStats(token: string, username: string): Promise
 
   const averageCommitsPerDay = activeDays > 0 ? totalCommits / activeDays : 0;
 
+  const repoContributionsMap = new Map<string, number>();
+  const repoCommitsMap = new Map<string, Array<{ message: string; date: string }>>();
+  const commitContributionsByRepo = contributions.commitContributionsByRepository || [];
+  commitContributionsByRepo.forEach((item: { 
+    repository: { name: string }; 
+    contributions?: { 
+      totalCount: number;
+    } 
+  }) => {
+    const repoName = item.repository.name;
+    const commits2025 = item.contributions?.totalCount || 0;
+    repoContributionsMap.set(repoName, commits2025);
+  });
+
+  repos.forEach((repo) => {
+    const repoName = repo.name;
+    const commits = repo.defaultBranchRef?.target?.history?.nodes || [];
+    const userCommits = commits
+      .filter(commit => commit.author?.user?.id === userId)
+      .map(commit => ({
+        message: commit.message.split('\n')[0],
+        date: commit.committedDate,
+      }))
+      .slice(0, 20);
+    if (userCommits.length > 0) {
+      repoCommitsMap.set(repoName, userCommits);
+    }
+  });
+
   const topRepositories = repos
-    .filter(repo => repo.stargazerCount > 0)
-    .slice(0, 5)
     .map(repo => ({
       name: repo.name,
       description: repo.description || '',
@@ -230,7 +296,17 @@ export async function fetchGitHubStats(token: string, username: string): Promise
       language: repo.primaryLanguage?.name || 'Unknown',
       updatedAt: repo.updatedAt,
       url: repo.url,
-    }));
+      commits2025: repoContributionsMap.get(repo.name) || 0,
+      recentCommits: repoCommitsMap.get(repo.name) || [],
+    }))
+    .filter(repo => repo.commits2025 > 0)
+    .sort((a, b) => {
+      if (b.commits2025 !== a.commits2025) {
+        return b.commits2025 - a.commits2025;
+      }
+      return b.stargazerCount - a.stargazerCount;
+    })
+    .slice(0, 5);
 
   const commitsByMonth = new Map<string, number>();
   contributionDays.forEach(day => {
@@ -242,32 +318,24 @@ export async function fetchGitHubStats(token: string, username: string): Promise
     .map(([month, count]) => ({ month, count }))
     .sort((a, b) => a.month.localeCompare(b.month));
 
-  const aiCommentRes = await fetch(`${API_BASE}/ai-comment`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      persona,
-      style: 'warm',
-      stats: {
-        totalCommits,
-        totalPRs,
-        totalStars,
-        totalRepos,
-        busiestDay,
-        topLanguages: topLanguages.slice(0, 5),
-        activeDays,
-        longestStreak,
-        averageCommitsPerDay,
-        radarData,
-        topRepositories,
-        commitActivity,
-        totalForks,
-        totalIssues,
-        totalReviews,
-      }
-    }),
+  const quarterStatsMap = new Map<1 | 2 | 3 | 4, number>();
+  const quarterNames = ['', 'Q1', 'Q2', 'Q3', 'Q4'];
+  
+  contributionDays.forEach(day => {
+    const quarter = getQuarter(day.date);
+    const existing = quarterStatsMap.get(quarter) || 0;
+    quarterStatsMap.set(quarter, existing + day.count);
   });
-  const { comment } = await aiCommentRes.json();
+
+  const quarterStats: QuarterStats[] = [1, 2, 3, 4].map(q => {
+    const commits = quarterStatsMap.get(q as 1 | 2 | 3 | 4) || 0;
+    return {
+      quarter: q as 1 | 2 | 3 | 4,
+      name: quarterNames[q],
+      commits: commits,
+      prs: 0,
+    };
+  });
 
   return {
     totalCommits,
@@ -279,14 +347,17 @@ export async function fetchGitHubStats(token: string, username: string): Promise
     persona,
     radarData,
     contributionCalendar: contributionDays,
-    aiComment: comment,
+    aiComment: '',
     topRepositories,
     commitActivity,
     totalForks,
     totalIssues,
-    totalReviews,    activeDays,
+    totalReviews,
+    activeDays,
     longestStreak,
-    averageCommitsPerDay,  };
+    averageCommitsPerDay,
+    quarterStats,
+  };
 }
 
 function calculatePersona(
@@ -309,7 +380,8 @@ function calculatePersona(
   if (activeDays.length === 0) return 'default';
 
   const avgPerDay = activeDays.reduce((sum, d) => sum + d.count, 0) / activeDays.length;
-  const consistency = activeDays.length / 365;
+  const daysElapsed = getDaysElapsedIn2025();
+  const consistency = daysElapsed > 0 ? activeDays.length / daysElapsed : 0;
 
   // 计算月份集中度（贡献最多的3个月占比）
   const commitsByMonth = new Map<string, number>();

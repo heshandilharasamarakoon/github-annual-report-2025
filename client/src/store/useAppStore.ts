@@ -21,11 +21,20 @@ export interface RepositoryInfo {
   language: string;
   updatedAt: string;
   url: string;
+  commits2025: number;
+  recentCommits: Array<{ message: string; date: string }>;
 }
 
 export interface CommitActivity {
   month: string;
   count: number;
+}
+
+export interface QuarterStats {
+  quarter: 1 | 2 | 3 | 4;
+  name: string;
+  commits: number;
+  prs: number;
 }
 
 export interface SlidesData {
@@ -47,7 +56,10 @@ export interface SlidesData {
   activeDays: number;
   longestStreak: number;
   averageCommitsPerDay: number;
+  quarterStats: QuarterStats[];
 }
+
+export type AICommentStyle = 'zako' | 'tsundere' | 'wholesome' | 'praise';
 
 interface AppState {
   token: string | null;
@@ -55,12 +67,18 @@ interface AppState {
   slidesData: SlidesData | null;
   currentSlide: number;
   isLoading: boolean;
+  aiStyle: AICommentStyle | null;
+  aiAnalysis: string | null;
+  aiComment: string | null;
   setToken: (token: string) => void;
   setUserData: (data: UserData) => void;
   setSlidesData: (data: SlidesData) => void;
   setCurrentSlide: (slide: number) => void;
   setLoading: (loading: boolean) => void;
   updateAIComment: (comment: string) => void;
+  setAIStyle: (style: AICommentStyle) => void;
+  setAIAnalysis: (analysis: string | null) => void;
+  setAIComment: (comment: string | null) => void;
   reset: () => void;
 }
 
@@ -70,14 +88,21 @@ export const useAppStore = create<AppState>((set) => ({
   slidesData: null,
   currentSlide: 0,
   isLoading: false,
+  aiStyle: null,
+  aiAnalysis: null,
+  aiComment: null,
   setToken: (token) => set({ token }),
   setUserData: (data) => set({ userData: data }),
   setSlidesData: (data) => set({ slidesData: data }),
   setCurrentSlide: (slide) => set({ currentSlide: slide }),
   setLoading: (loading) => set({ isLoading: loading }),
   updateAIComment: (comment) => set((state) => ({
-    slidesData: state.slidesData ? { ...state.slidesData, aiComment: comment } : null
+    slidesData: state.slidesData ? { ...state.slidesData, aiComment: comment } : null,
+    aiComment: comment,
   })),
-  reset: () => set({ token: null, userData: null, slidesData: null, currentSlide: 0 }),
+  setAIStyle: (style) => set({ aiStyle: style }),
+  setAIAnalysis: (analysis) => set({ aiAnalysis: analysis }),
+  setAIComment: (comment) => set({ aiComment: comment }),
+  reset: () => set({ token: null, userData: null, slidesData: null, currentSlide: 0, aiStyle: null, aiAnalysis: null, aiComment: null }),
 }));
 

@@ -133,5 +133,52 @@ export const apiRoutes = new Elysia({ prefix: '/api' })
     set.headers['Connection'] = 'keep-alive';
 
     return AIService.generateCommentStream(request.persona, request.style, request.stats);
+  })
+
+  .post('/ai-analysis/stream', async ({ body, set }) => {
+    try {
+      const { commits, repositories, style } = body as {
+        commits: Array<{ message: string; date: string }>;
+        repositories: Array<{ name: string; description: string; language: string; commits2025: number; stargazerCount: number; recentCommits: Array<{ message: string }> }>;
+        style?: string;
+      };
+
+      if (!commits || !repositories) {
+        set.status = 400;
+        logger.warn('AI analysis request without commits or repositories');
+        return { error: 'Commits and repositories required' };
+      }
+
+      set.headers['Content-Type'] = 'text/event-stream';
+      set.headers['Cache-Control'] = 'no-cache';
+      set.headers['Connection'] = 'keep-alive';
+
+      const stream = new ReadableStream({
+        async start(controller) {
+          try {
+            const generator = AIService.generateAnalysisStream(commits, repositories, style);
+            for await (const chunk of generator) {
+              controller.enqueue(new TextEncoder().encode(chunk));
+            }
+            controller.close();
+          } catch (error: any) {
+            logger.error('Stream error:', error);
+            controller.error(error);
+          }
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      });
+    } catch (error: any) {
+      logger.error('AI analysis stream setup failed:', error);
+      set.status = 500;
+      return { error: error.message || 'Failed to setup stream' };
+    }
   });
 

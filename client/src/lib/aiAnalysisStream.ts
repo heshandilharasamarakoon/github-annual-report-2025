@@ -1,26 +1,37 @@
-import type { AICommentStyle } from '../store/useAppStore';
-import type { SlidesData } from '../store/useAppStore';
-
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 
-export async function generateAICommentStream(
-  persona: string,
-  style: AICommentStyle,
-  stats: SlidesData,
+export interface CommitData {
+  message: string;
+  date: string;
+}
+
+export interface RepositoryData {
+  name: string;
+  description: string;
+  language: string;
+  commits2025: number;
+  stargazerCount: number;
+  recentCommits: Array<{ message: string }>;
+}
+
+export async function generateAIAnalysisStream(
+  commits: CommitData[],
+  repositories: RepositoryData[],
+  style: string,
   onChunk: (chunk: string) => void,
   onComplete: () => void,
   onError?: (error: Error) => void
 ): Promise<void> {
   try {
     const response = await fetch(
-      `${API_BASE}/ai-comment/stream`,
+      `${API_BASE}/ai-analysis/stream`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'text/event-stream',
         },
-        body: JSON.stringify({ persona, style, stats }),
+        body: JSON.stringify({ commits, repositories, style }),
       }
     );
 
@@ -57,7 +68,7 @@ export async function generateAICommentStream(
               return;
             }
           } catch (e) {
-            console.error('Failed to parse SSE data:', e);
+            // Ignore parse errors
           }
         }
       }
@@ -65,7 +76,6 @@ export async function generateAICommentStream(
 
     onComplete();
   } catch (error) {
-    console.error('Stream error:', error);
     if (onError) {
       onError(error as Error);
     }

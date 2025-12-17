@@ -1,27 +1,68 @@
 import { motion } from 'framer-motion';
 import { useAppStore } from '../../store/useAppStore';
 import { Button } from '../ui/button';
-import { Download, Loader2, Heart, Zap, Sparkles } from 'lucide-react';
+import { Download, Loader2, RefreshCw } from 'lucide-react';
 import { generateReportImage, downloadBlob } from '../../lib/canvas';
 import { generateAICommentStream } from '../../lib/aiCommentStream';
-import type { AICommentStyle } from '../../lib/aiComment';
-import { useState, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import { is2025Complete, getProgressText } from '../../lib/timeUtils';
 
 export function FinalSlide() {
-  const { slidesData, userData, updateAIComment } = useAppStore();
+  const { slidesData, userData, updateAIComment, aiStyle, aiComment, setAIComment } = useAppStore();
   const [isDownloading, setIsDownloading] = useState(false);
-  const [currentStyle, setCurrentStyle] = useState<AICommentStyle>('praise');
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingComment, setStreamingComment] = useState('');
-  const isStreamingRef = useRef(false);
 
-  if (!slidesData || !userData) return null;
+  if (!slidesData || !userData || !aiStyle) return null;
+
+  const generateComment = async () => {
+    if (!slidesData || isGenerating) return;
+
+    console.log('开始生成 AI 评论...');
+    setIsGenerating(true);
+    setAIComment(null);
+    setStreamingComment('');
+
+    let fullComment = '';
+
+    try {
+      await generateAICommentStream(
+        slidesData.persona,
+        aiStyle,
+        slidesData,
+        (chunk: string) => {
+          fullComment += chunk;
+          setStreamingComment(fullComment);
+        },
+        () => {
+          updateAIComment(fullComment);
+          setAIComment(fullComment);
+          setIsGenerating(false);
+        },
+        (error: Error) => {
+          console.error('Stream failed:', error);
+          setIsGenerating(false);
+        }
+      );
+    } catch (error) {
+      console.error('生成 AI 评论时出错:', error);
+      setIsGenerating(false);
+    }
+  };
+
+  useEffect(() => {
+    if (aiComment === null && !isGenerating && slidesData && aiStyle) {
+      generateComment();
+    } else if (aiComment) {
+      setStreamingComment(aiComment);
+    }
+  }, [slidesData, aiStyle, aiComment, isGenerating]);
 
   const handleDownload = async () => {
     setIsDownloading(true);
     try {
       const blob = await generateReportImage(userData, slidesData);
-      const filename = `github-2025-${userData.login}-${currentStyle}.png`;
+      const filename = `github-2025-${userData.login}-${aiStyle}.png`;
       downloadBlob(blob, filename);
     } catch (error) {
       console.error('Failed to generate image:', error);
@@ -30,44 +71,6 @@ export function FinalSlide() {
       setIsDownloading(false);
     }
   };
-
-  const handleStyleChange = async (style: AICommentStyle) => {
-    if (style === currentStyle || isStreamingRef.current) return;
-    
-    setIsGenerating(true);
-    setCurrentStyle(style);
-    setStreamingComment('');
-    isStreamingRef.current = true;
-    
-    let fullComment = '';
-
-    generateAICommentStream(
-      slidesData.persona,
-      style,
-      slidesData,
-      (chunk: string) => {
-        fullComment += chunk;
-        setStreamingComment(fullComment);
-      },
-      () => {
-        updateAIComment(fullComment);
-        setIsGenerating(false);
-        isStreamingRef.current = false;
-      },
-      (error: Error) => {
-        console.error('Stream failed:', error);
-        setIsGenerating(false);
-        isStreamingRef.current = false;
-      }
-    );
-  };
-
-  const styleButtons = [
-    { style: 'zako' as AICommentStyle, label: '雌小鬼', icon: Sparkles, color: 'text-pink-300' },
-    { style: 'tsundere' as AICommentStyle, label: '傲娇', icon: Zap, color: 'text-yellow-400' },
-    { style: 'wholesome' as AICommentStyle, label: '温柔大姐姐', icon: Heart, color: 'text-pink-400' },
-    { style: 'praise' as AICommentStyle, label: '夸夸', icon: Sparkles, color: 'text-purple-400' },
-  ];
 
   return (
     <div className="flex items-center justify-center min-h-screen px-4 pb-20">
@@ -80,8 +83,26 @@ export function FinalSlide() {
         >
           <div className="text-8xl mb-6">🎉</div>
           <h2 className="text-5xl font-bold mb-4">
-            <span className="neon-green neon-glow">2025</span> 完美收官
+            {is2025Complete() ? (
+              <>
+                <span className="neon-green neon-glow">2025</span> 完美收官
+              </>
+            ) : (
+              <>
+                <span className="neon-green neon-glow">2025</span> 进行中
+              </>
+            )}
           </h2>
+          {!is2025Complete() && (
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="text-gray-400 text-lg mb-4"
+            >
+              {getProgressText()}
+            </motion.p>
+          )}
         </motion.div>
 
         <motion.div
@@ -90,44 +111,41 @@ export function FinalSlide() {
           transition={{ delay: 0.3 }}
           className="mb-6"
         >
-          <div className="flex justify-center gap-3 mb-6">
-            {styleButtons.map(({ style, label, icon: Icon, color }) => (
-              <button
-                key={style}
-                onClick={() => handleStyleChange(style)}
-                disabled={isGenerating}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${
-                  currentStyle === style
-                    ? 'bg-[#10b981]/20 border-[#10b981] text-[#10b981]'
-                    : 'bg-[#0a0a0a] border-white/10 text-gray-400 hover:border-white/30'
-                } ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                <Icon className={`w-4 h-4 ${currentStyle === style ? 'text-[#10b981]' : color}`} />
-                <span className="text-sm font-medium">{label}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-8 min-h-[240px] flex items-center justify-center">
-            {isGenerating && !streamingComment ? (
-              <div className="flex items-center gap-3 text-gray-400">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>AI 正在深度分析你的数据...</span>
-              </div>
-            ) : (
-              <p className="text-base text-gray-300 leading-relaxed italic max-w-3xl text-left">
-                "{isGenerating ? streamingComment : slidesData.aiComment}"
-                {isGenerating && (
-                  <motion.span
-                    animate={{ opacity: [1, 0.3, 1] }}
-                    transition={{ duration: 0.8, repeat: Infinity }}
-                    className="inline-block ml-1 text-[#10b981]"
-                  >
-                    ▊
-                  </motion.span>
-                )}
-              </p>
-            )}
+          <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-8 min-h-[240px] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">AI 年度总结</h3>
+              {!isGenerating && aiComment && (
+                <button
+                  onClick={generateComment}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-[#10b981] hover:text-[#34d399] border border-[#10b981]/30 hover:border-[#10b981]/50 rounded-lg transition-all hover:bg-[#10b981]/10"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  <span>重新生成</span>
+                </button>
+              )}
+            </div>
+            <div className="flex-1 flex items-center justify-center">
+              {isGenerating && !streamingComment ? (
+                <div className="flex flex-col items-center gap-3 text-gray-400">
+                  <Loader2 className="w-6 h-6 animate-spin text-[#10b981]" />
+                  <span>AI 正在深度分析你的代码和提交记录...</span>
+                  <span className="text-xs text-gray-500">这可能需要几秒钟</span>
+                </div>
+              ) : (
+                <p className="text-base text-gray-300 leading-relaxed italic max-w-3xl text-left w-full">
+                  "{isGenerating ? streamingComment : (aiComment || streamingComment)}"
+                  {isGenerating && (
+                    <motion.span
+                      animate={{ opacity: [1, 0.3, 1] }}
+                      transition={{ duration: 0.8, repeat: Infinity }}
+                      className="inline-block ml-1 text-[#10b981]"
+                    >
+                      ▊
+                    </motion.span>
+                  )}
+                </p>
+              )}
+            </div>
           </div>
         </motion.div>
 
@@ -164,7 +182,7 @@ export function FinalSlide() {
           transition={{ delay: 0.7 }}
           className="text-gray-500 mt-12"
         >
-          继续保持热情，2026 见！
+          {is2025Complete() ? '继续保持热情，2026 见！' : '继续加油，完成你的2025年目标！'}
         </motion.p>
       </div>
     </div>

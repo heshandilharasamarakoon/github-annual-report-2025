@@ -63,14 +63,6 @@ export class AIService {
       ?.map(l => `${l.name}(${l.percentage.toFixed(1)}%)`)
       .join('、') || '未知';
 
-    const radarText = stats?.radarData
-      ?.map(r => `${r.subject}: ${r.value.toFixed(0)}分`)
-      .join('、') || '';
-
-    const reposText = stats?.topRepositories
-      ?.map(r => `${r.name}(⭐${r.stargazerCount}, ${r.language})`)
-      .join('、') || '';
-
     const commitActivityText = stats?.commitActivity
       ?.map(m => `${m.month}: ${m.count}次`)
       .slice(-6)
@@ -90,7 +82,6 @@ export class AIService {
 - 活跃：${stats?.activeDays || 0}天(${activityRate}%) | 连续：${stats?.longestStreak || 0}天 | 日均：${(stats?.averageCommitsPerDay || 0).toFixed(1)}次
 - 最忙：${stats?.busiestDay?.date || ''}(${stats?.busiestDay?.count || 0}次)
 - 语言：${languagesText}
-- 项目：${reposText}
 - 趋势：${commitActivityText}
 `;
 
@@ -154,7 +145,7 @@ export class AIService {
       const presetKey = styleMapping[style as string] || 'praise';
       const preset = presets[presetKey];
 
-      let streamPrompt = `${preset?.styleGuide || '生成一段年度总结'}\n\n请生成一段GitHub 2025年度评论（100-150字）。`;
+      let streamPrompt: string = `${preset?.styleGuide || '生成一段年度总结'}\n\n请生成一段GitHub 2025年度评论（100-150字）。`;
 
       if (stats) {
         const personaDescriptions: Record<string, string> = {
@@ -179,14 +170,6 @@ export class AIService {
           ?.map((l: any) => `${l.name}(${l.percentage.toFixed(1)}%)`)
           .join('、') || '未知';
 
-        const radarText = stats?.radarData
-          ?.map((r: any) => `${r.subject}: ${r.value.toFixed(0)}分`)
-          .join('、') || '';
-
-        const reposText = stats?.topRepositories
-          ?.map((r: any) => `${r.name}(⭐${r.stargazerCount}, ${r.language})`)
-          .join('、') || '';
-
         const commitActivityText = stats?.commitActivity
           ?.map((m: any) => `${m.month}: ${m.count}次`)
           .slice(-6)
@@ -206,7 +189,6 @@ export class AIService {
 - 活跃：${stats?.activeDays || 0}天(${activityRate}%) | 连续：${stats?.longestStreak || 0}天 | 日均：${(stats?.averageCommitsPerDay || 0).toFixed(1)}次
 - 最忙：${stats?.busiestDay?.date || ''}(${stats?.busiestDay?.count || 0}次)
 - 语言：${languagesText}
-- 项目：${reposText}
 - 趋势：${commitActivityText}
 `;
 
@@ -250,15 +232,117 @@ ${dataContext}`;
     }
   }
 
+  static async *generateAnalysisStream(
+    commits: Array<{ message: string; date: string }>,
+    repositories: Array<{ name: string; description: string; language: string; commits2025: number; stargazerCount: number; recentCommits: Array<{ message: string }> }>,
+    style?: string
+  ): AsyncGenerator<string> {
+    const client = this.getClient();
+
+    if (!client) {
+      const fallback = '你的代码风格简洁明了，项目维护良好。';
+      for (const char of fallback) {
+        yield `data: ${JSON.stringify({ content: char })}\n\n`;
+        await new Promise(resolve => setTimeout(resolve, 30));
+      }
+      yield `data: ${JSON.stringify({ done: true })}\n\n`;
+      return;
+    }
+
+    try {
+      const commitMessages = commits.map(c => c.message).filter(m => m && m.trim()).slice(0, 20);
+      const topRepos = repositories.slice(0, 5);
+
+      const commitStyle = commitMessages.length > 0
+        ? commitMessages.reduce((sum, m) => sum + m.length, 0) / commitMessages.length
+        : 0;
+
+      const hasEmoji = commitMessages.some(m => 
+        /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u.test(m)
+      );
+
+      const repoDetails = topRepos.map(r => ({
+        name: r.name,
+        description: r.description || '无描述',
+        language: r.language,
+        commits: r.commits2025,
+        stars: r.stargazerCount,
+        sampleCommits: r.recentCommits.slice(0, 3).map(c => c.message),
+      }));
+
+      const analysisPrompt = `分析以下 GitHub 2025 年的 Commit 和仓库数据，生成一段有趣的分析（150-200字）：
+
+Commit 风格：
+- 平均长度：${Math.round(commitStyle)}字符
+- 使用Emoji：${hasEmoji ? '是' : '否'}
+- 样本数量：${commitMessages.length}条
+
+热门项目（Top 5）：
+${repoDetails.map((r, idx) => `
+${idx + 1}. ${r.name} (${r.language})
+   - 描述：${r.description}
+   - 2025年提交：${r.commits}次
+   - 星标：${r.stars}个
+   - 示例提交：
+     ${r.sampleCommits.map(c => `* "${c.substring(0, 40)}${c.length > 40 ? '...' : ''}"`).join('\n     ') || '暂无'}
+`).join('')}
+
+请基于这些数据，生成一段生动有趣的分析，重点关注代码习惯、项目特点和个人风格。`;
+
+      const styleMapping: Record<string, string> = {
+        zako: 'zako',
+        tsundere: 'tsundere',
+        wholesome: 'wholesome',
+        praise: 'praise',
+      };
+
+      const presetKey = styleMapping[style as string] || 'praise';
+      const preset = presets[presetKey];
+
+      const stream = await client.chat.completions.create({
+        model: env.AI_MODEL,
+        messages: [
+          {
+            role: 'system',
+            content: preset?.systemPrompt || '你是一个代码分析专家，擅长从 Commit 和仓库数据中发现有趣的模式和特点。'
+          },
+          {
+            role: 'user',
+            content: analysisPrompt
+          }
+        ],
+        temperature: 0.85,
+        max_tokens: 500,
+        stream: true,
+      });
+
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || '';
+        if (content) {
+          yield `data: ${JSON.stringify({ content })}\n\n`;
+        }
+      }
+
+      yield `data: ${JSON.stringify({ done: true })}\n\n`;
+    } catch (error: any) {
+      logger.error('Analysis generation failed:', error);
+      const fallback = '你的代码风格简洁明了，项目维护良好。';
+      for (const char of fallback) {
+        yield `data: ${JSON.stringify({ content: char })}\n\n`;
+        await new Promise(resolve => setTimeout(resolve, 30));
+      }
+      yield `data: ${JSON.stringify({ done: true })}\n\n`;
+    }
+  }
+
   private static getFallbackComment(persona: string, style: string = 'praise'): string {
-    // Only a simple fallback for now, you can expand with more detailed examples for each style if needed
     const fallbackComments: Record<string, string> = {
       zako: '哼，哥哥今年的代码也就那样啦，杂鱼杂鱼~不过嘛，姐姐还是勉强夸你一下，继续加油哦，别被我甩太远了呢！',
       tsundere: '哼，别以为提交了这么多我就会夸你，这只是程序员的本分而已！不过……勉强承认你有点进步吧。才不是在关心你呢，笨蛋。',
       wholesome: '辛苦啦~这一年真的很棒哦，无论遇到什么困难，姐姐都觉得你超级厉害！明年也要继续加油，记得照顾好自己，你是最棒的工程师！',
       praise: '这一年你的努力和成长都很耀眼，每一次提交都是进步的见证。继续保持，未来一定会更好！',
     };
-    return fallbackComments[style] || fallbackComments['praise'];
+    return (fallbackComments[style] ?? fallbackComments.praise) as string;
   }
 }
 
