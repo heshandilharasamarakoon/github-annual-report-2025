@@ -7,6 +7,7 @@ interface GitHubRepo {
   description: string;
   stargazerCount: number;
   forkCount: number;
+  isFork: boolean;
   url: string;
   updatedAt: string;
   primaryLanguage: {
@@ -107,6 +108,7 @@ export async function fetchGitHubStats(token: string, username: string): Promise
             description
             stargazerCount
             forkCount
+            isFork
             url
             updatedAt
             primaryLanguage {
@@ -149,7 +151,7 @@ export async function fetchGitHubStats(token: string, username: string): Promise
   const totalForks = repos.reduce((sum: number, repo) => sum + (repo.forkCount || 0), 0);
 
   const languageMap = new Map<string, { size: number; color: string }>();
-  repos.forEach((repo) => {
+  repos.filter(repo => !repo.isFork).forEach((repo) => {
     repo.languages.edges.forEach((edge) => {
       const name = edge.node.name;
       const existing = languageMap.get(name) || { size: 0, color: edge.node.color };
