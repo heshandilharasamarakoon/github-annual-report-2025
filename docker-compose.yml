@@ -1,0 +1,23 @@
+services:
+  client:
+    build: ./client
+    ports:
+      - "8080:80"
+    env_file:
+      - ./client/.env
+    environment:
+      - VITE_API_BASE_URL=http://server:3000/api
+    depends_on:
+      - server
+
+  server:
+    build: ./server
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./server/.env
+    environment:
+      - NODE_ENV=production
+      - CORS_ORIGIN=http://localhost:5173
+    volumes:
+      - ./server/logs:/app/logs
